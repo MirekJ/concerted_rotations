@@ -5,7 +5,7 @@
  * @todo Add methods to save and load histogram in binary and text format
  */
 #include "histogram.h"
-
+#include <math.h>
 
 /**
  * @brief Initialization of 1D histogram
@@ -40,36 +40,37 @@ histogram * histogram_init(double min, double max, double number_of_bins, double
 /*-----------------------------*/
 
     histogram 
-        *histo              = (histogram *)malloc(sizeof(histogram));
+        *histo                  = (histogram *)malloc(sizeof(histogram));
 
     int
-        *frequency          = i1t(number_of_bins);                      // actual histogram 
+        *frequency              = i1t(number_of_bins);                  // actual histogram 
 
     double
-        *free_energy        = d1t(number_of_bins);                      // free energy surface
+        *free_energy            = d1t(number_of_bins);                  // free energy surface
 
     for (int i = 0; i < number_of_bins; i++)
     {
-        frequency[i]        = 0;
-        free_energy[i]      = 0.0;
+        frequency[i]            = 0;
+        free_energy[i]          = 0.0;
     }
 
     // main data structures
-    histo->frequency        = frequency;
-    histo->free_energy      = free_energy;
+    histo->frequency            = frequency;
+    histo->free_energy          = free_energy;
 
     // properties of histogram/free energy (dimensionality)
-    histo->dimension        = 1;
-    histo->number_of_bins[0]= number_of_bins;
-    histo->min[0]           = min;
-    histo->max[0]           = max;
-    histo->bin_size_inv[0]  = number_of_bins/(max-min);
+    histo->dimension            = 1;
+    histo->number_of_bins[0]    = number_of_bins;
+    histo->min[0]               = min;
+    histo->max[0]               = max;
+    histo->bin_size_inv[0]      = number_of_bins/(max-min);
 
     // aditional stuff for free energy calculation
-    histo->N                = 0;
-    histo->max_frequency    = 0;                                        // frequncy of maximaly populated bin (used to rescale alpha)
-    histo->min_frequency    = 0;                                        // frequncy of minimaly populated bin (used to rescale alpha)
-    histo->alpha            = alpha;                                    // alpha that is used in wang landau sampling
+    histo->number_of_all_bins   = number_of_bins;
+    histo->N                    = 0;
+    histo->max_frequency        = 0;                                    // frequncy of maximaly populated bin (used to rescale alpha)
+    histo->min_frequency        = 0;                                    // frequncy of minimaly populated bin (used to rescale alpha)
+    histo->alpha                = alpha;                                // alpha that is used in wang landau sampling
 
     return histo;
 }
@@ -117,32 +118,29 @@ void histogram_add_dimension(double min, double max, double number_of_bins, hist
         *new_frequency;
 
     double
-        number_of_all_bins = number_of_bins,
         *new_free_energy;
 
     // calculate current size of histogram and freeEnergy
-    for(int i = 0; i < histo->dimension; i++){
-        number_of_all_bins *= histo->number_of_bins[i];
-    }
+    histo->number_of_all_bins *= number_of_bins;
 
     //now expand 1D arrays
-    new_frequency = (int *) realloc ( histo->frequency, (size_t) number_of_all_bins * sizeof(int));
+    new_frequency = (int *) realloc ( histo->frequency, (size_t) histo->number_of_all_bins * sizeof(int));
     if ( new_frequency == NULL)
     {
-        snprintf(msg, sizeof(msg), "Memory: was not possible to realloc histogram in histogram_add_dimension(...)!\nSize of new histogram was: %lf MB\n", number_of_all_bins*sizeof(int)*2*BYTES_TO_MB);
+        snprintf(msg, sizeof(msg), "Memory: was not possible to realloc histogram in histogram_add_dimension(...)!\nSize of new histogram was: %lf MB\n", histo->number_of_all_bins*sizeof(int)*2*BYTES_TO_MB);
         error(msg, __FILE__, __LINE__);
     }
     histo->frequency   = new_frequency;
 
-    new_free_energy = (double *) realloc ( histo->free_energy, (size_t) number_of_all_bins * sizeof(double));
+    new_free_energy = (double *) realloc ( histo->free_energy, (size_t) histo->number_of_all_bins * sizeof(double));
     if ( new_free_energy == NULL)
     {
-        snprintf(msg, sizeof(msg), "Memory: was not possible to realloc histogram in histogram_add_dimension(...)!\nSize of new histogram was: %lf MB\n", number_of_all_bins*sizeof(int)*2*BYTES_TO_MB);
+        snprintf(msg, sizeof(msg), "Memory: was not possible to realloc histogram in histogram_add_dimension(...)!\nSize of new histogram was: %lf MB\n", histo->number_of_all_bins*sizeof(int)*2*BYTES_TO_MB);
         error(msg, __FILE__, __LINE__);
     }
     histo->free_energy = new_free_energy;
 
-    for (int i = 0; i < number_of_all_bins; i++)
+    for (int i = 0; i < histo->number_of_all_bins; i++)
     {
         histo->frequency[i]     = 0;
         histo->free_energy[i]   = 0.0;
@@ -461,6 +459,35 @@ void histogram_print(const char *filename, const char *format, const histogram *
 
     fclose(histogram_out);
 }
+
+/**
+ * @brief Function to update size of microcanonical entropy change (alpha)
+ *
+ * If histog roughness \f$Tlog\left(\frac{max}{min}\right)\f$ is smaller then MAXIMAL_HISTOGRAM_ROUGHNESS then \f$\alpha\f$ is scaled by \f$0.5\f$.
+ *
+ * @param[in]       temperature     Simulation temperature.
+ * @param[in,out]   *histo          Histogram strucure.
+ *
+ * @return \c void
+ */
+void histogram_updateAlpha(const double temperature, histogram *histo)
+{
+    int
+        min=histo->N,
+        max=0;
+    for(int i=0; i < histo->number_of_all_bins; i++)
+    {
+        if(histo->frequency[i] > max)
+            max=histo->frequency[i];
+        if(histo->frequency[i] < min)
+            min=histo->frequency[i];
+    }
+    if ((temperature*log(max/min)) < MAXIMAL_HISTOGRAM_ROUGHNESS)
+        histo->alpha*=0.5;
+}
+
+
+
 
 
 

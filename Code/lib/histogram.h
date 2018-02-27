@@ -17,6 +17,9 @@
 #define MAX_HISTOGRAM_DIMENSION 8
 #define BYTES_TO_MB 0.000000954
 
+/** @brief Value used for rescaling current value of microcanonical entropy change (alpha) if histogram roughness is not lower then value scaling is not done.*/
+#define MAXIMAL_HISTOGRAM_ROUGHNESS 0.00001
+
 /** @brief Return values of histogram add/read functions.*/
 #define IN_HISTOGRAM  0
 #define OUT_HISTOGRAM 1
@@ -28,8 +31,8 @@
  */
 typedef struct {
     // main data structures
-    int *frequency;                                         /**< Histogram data stored in 1D array. */
-    double *free_energy;                                    /**< Free energy data stored in 1D array. */
+    int     *frequency;                                     /**< Histogram data stored in 1D array. */
+    double  *free_energy;                                   /**< Free energy data stored in 1D array. */
 
     // properties of histogram/free energy (dimensionality)
     int     dimension;                                      /**< Determine dimension of histogram. */
@@ -41,10 +44,11 @@ typedef struct {
     double  bin_size_inv     [ MAX_HISTOGRAM_DIMENSION ];   /**< Invers of bin size in all dimension. */
 
     // aditional stuff for free energy calculation
-    double N;                                               /**< Number of samples taken. Used resclae of alpha in WL free energy calculation. */
-    double max_frequency;                                   /**< Maximal hight of histogram. Used resclae of alpha in WL free energy calculation. */
-    double min_frequency;                                   /**< Minimal height of histogram. Used resclae of alpha in WL free energy calculation. */
-    double alpha;                                           /**< Current value of microcanonical entropy change. Used for WL free energy calculation. */
+    int     number_of_all_bins;                             /**< Number of all bins in all dimensions. */
+    double  N;                                              /**< Number of samples taken. Used resclae of alpha in WL free energy calculation. */
+    double  max_frequency;                                  /**< Maximal hight of histogram. Used resclae of alpha in WL free energy calculation. */
+    double  min_frequency;                                  /**< Minimal height of histogram. Used resclae of alpha in WL free energy calculation. */
+    double  alpha;                                          /**< Current value of microcanonical entropy change. Used for WL free energy calculation. */
 }histogram;
 
 
@@ -134,7 +138,6 @@ double histogram_frequency(double *point, const histogram *histo);
  */
 double histogram_frequency_safe(double *point, double *value, const histogram *histo);
 
-
 /**
  * @brief Function print histogram in selected format to file
  *
@@ -142,7 +145,11 @@ double histogram_frequency_safe(double *point, double *value, const histogram *h
  */
 void histogram_print(const char *filename, const char *format, const histogram *histo);
 
-
-void histogram_rescale(const histogram *histo);
+/**
+ * @brief Function to update size of microcanonical entropy change (alpha)
+ *
+ * If histog roughness \f$Tlog\left(\frac{max}{min}\right)\f$ is smaller then MAXIMAL_HISTOGRAM_ROUGHNESS then \f$\alpha\f$ is scaled by \f$0.5\f$.
+ */
+void histogram_updateAlpha(const double temperature, histogram *histo);
 
 #endif //__HISTOGRAM
